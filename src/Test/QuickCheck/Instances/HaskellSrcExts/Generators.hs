@@ -49,8 +49,9 @@ module Test.QuickCheck.Instances.HaskellSrcExts.Generators (
     -- ** Op
     opGen, opGenWithDist,
     -- ** SpecialCon
+    SpecialConDist(..),
     specialConGen,
-    specialConGen',
+    specialConGenWithDist,
     -- ** CName
     cnameGen, cnameGenWithDist,
 
@@ -421,18 +422,21 @@ opGenWithDist = nameGenWithDist ConOp VarOp
 -- SpecialCon
 
 specialConGen :: Gen SpecialCon
-specialConGen = specialConGen' 5 2 7 boxedGen
+specialConGen = specialConGenWithDist (SCD 5 2 [Boxed, Unboxed] 7)
 
-specialConGen'
-    :: Int -- ^ frequency of normal cons
-    -> Int -- ^ frequency of tuple cons
-    -> Int -- ^ maximum size of tuple cons
-    -> Gen Boxed
-    -> Gen SpecialCon
-specialConGen' nf tf mts bg
-    = frequency
-        [ (nf, elements [UnitCon, ListCon, FunCon, Cons, UnboxedSingleCon])
-        , (tf, TupleCon <$> bg <*> choose (2, mts))
+data SpecialConDist
+    = SCD
+    { spnormalf     :: Int
+    , sptuplef      :: Int
+    , spboxings     :: [Boxed]
+    , spmaxTSize    :: Int
+    }
+
+specialConGenWithDist :: SpecialConDist -> Gen SpecialCon
+specialConGenWithDist scd = frequency
+        [ (spnormalf scd , elements [UnitCon, ListCon, FunCon, Cons, UnboxedSingleCon])
+        , (sptuplef  scd, TupleCon <$> elements (spboxings scd)
+                                   <*> choose (2, spmaxTSize scd))
         ]
 
 -----------------------------------------------------------------------------
