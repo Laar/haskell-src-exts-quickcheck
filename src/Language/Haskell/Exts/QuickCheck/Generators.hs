@@ -43,6 +43,10 @@ module Language.Haskell.Exts.QuickCheck.Generators (
     varIDGen, varSymGen, varGen, conIDGen, conSymGen, conGen,
     -- *** Name propositions
     isVarID, isVarSym, isVar, isConID, isConSym, isCon,
+    -- *** Ascii name
+    nameGenA,
+    varIDAGen,varGenA, conIDAGen, conGenA,
+    isVarIDA, isConIDA,
 
     -- ** QOp
     qopGen,
@@ -63,14 +67,18 @@ module Language.Haskell.Exts.QuickCheck.Generators (
     -- * Pragmas
     -- ** Tool
     toolGen,
+
+    poisonGen,
 ) where
 
 -----------------------------------------------------------------------------
 
 import Control.Applicative
 
-import Data.Char(isUpper, isLower, isAlphaNum)
-import Data.List(intercalate)
+import Data.Char(isUpper, isLower, isDigit, isAscii, chr)
+import Data.List(intercalate, findIndex)
+import Data.Maybe(fromMaybe)
+import Data.Traversable(mapAccumL)
 
 import Test.QuickCheck
 import Language.Haskell.Exts.Syntax
@@ -83,6 +91,38 @@ infixr 8 .||
 (.&&), (.||) :: (a -> Bool) -> (a -> Bool) -> a -> Bool
 p1 .&& p2 = \v -> p1 v && p2 v
 p1 .|| p2 = \v -> p1 v || p2 v
+
+-----------------------------------------------------------------------------
+
+
+-- | Generates integers which are semi-poison distuted, that is the poison
+-- distribution PMF is cut of at c1. The remainder of the PMF is constant
+-- for the numbers c1 .. c2. For all other values it is 0. To approximate
+-- a poison distribution c1 should be quite a bit larger than lambda.
+poisonGen
+    :: Double -- ^ Poison parameter (lambda)
+    -> Int    -- ^ Poison cutoff c1
+    -> Int    -- ^ Linear cutoff c2, c2 > c1
+    -> Gen Int
+poisonGen lambda c1 c2 | c1 >= c2 || lambda <= 0 = error $
+    "poisonGen: invalid parameters " ++ show lambda ++ ", " ++ show c1 ++ ", " ++ show c2
+poisonGen lambda c1 c2 =
+    let (tot,cmf) = mapAccumL (\acc v -> (acc + v, acc + v)) 0 $ poisonPMFpart
+    in choose (0, 1) >>= \x ->
+        return $ if x < tot
+                  then fromMaybe c1 $ findIndex (x <=) cmf
+                  else let frac = (x - tot) / (1 - tot) -- fraction in the range c1 -> c2
+                           part = frac * (fromIntegral $ c2 - c1) -- offset from c1
+                       in c1 + ceiling part
+
+    where
+        poisonPMFpart = map (\k -> (exp (-lambda)) * (lambda ^ k) / (fromIntegral $ fact k)) [0..c1]
+        fact :: Int -> Integer
+        fact 0 = 1
+        fact n = product [1 .. (fromIntegral n)]
+
+plistOf1 :: Gen a -> Gen [a]
+plistOf1 g = (:) <$> g <*> (poisonGen 4 10 20 >>= \i -> vectorOf i g)
 
 -----------------------------------------------------------------------------
 -- Module
@@ -194,7 +234,7 @@ moduleNameGen :: Gen ModuleName
 moduleNameGen = fmap (ModuleName . intercalate ".") parts
     where
         parts :: Gen [String]
-        parts = listOf1 (arbitrary `suchThat` isModIDPart)
+        parts = listOf1 (nameStringGen `suchThat` isModIDPart)
 
 shrinkModuleName :: ModuleName -> [ModuleName]
 shrinkModuleName (ModuleName n) = map ModuleName $ shrink' n
@@ -214,7 +254,7 @@ isID _ _ [] = False
 isID f g (n:ns) = f n && all g ns
 
 isIDPart :: Char -> Bool
-isIDPart = isAlphaNum .|| (== '\'')
+isIDPart = isLower .|| isUpper .|| isDigit .|| (== '\'') .|| (== '_')
 
 -----------------------------------------------------------------------------
 -- QName
@@ -231,6 +271,9 @@ qnameGen ng mg sg = frequency
 nameGen :: Gen Name
 nameGen  = withNameDist (4, 5, 1, 3) id
 
+nameGenA :: Gen Name
+nameGenA = withNameDistA (4, 5, 1, 3) id
+
 type NameDistribution = (Int, Int, Int, Int)
 
 withNameDist :: NameDistribution -> (Name -> a) -> Gen a
@@ -243,40 +286,78 @@ withNameDist' (ci, vi, cs, vs) gc gv
         , (cs, gc <$> conSymGen)
         , (vs, gv <$> varSymGen)]
 
+withNameDistA :: NameDistribution -> (Name -> a) -> Gen a
+withNameDistA nd g = withNameDistA' nd g g
+withNameDistA' :: NameDistribution -> (Name -> a) -> (Name -> a) -> Gen a
+withNameDistA' (ci, vi, cs, vs) gc gv
+    = frequency
+        [ (ci, gc <$> conIDAGen)
+        , (vi, gv <$> varIDAGen)
+        , (cs, gc <$> conSymGen)
+        , (vs, gv <$> varSymGen)]
+
 
 varIDGen, varSymGen, varGen, conIDGen, conSymGen, conGen :: Gen Name
-varIDGen    = Ident  <$> suchThat arbitrary isVarID'
-varSymGen   = Symbol <$> suchThat arbitrary isVarSym'
-varGen      = frequency [(4, varIDGen), (3, varSymGen)]
-conIDGen    = Ident  <$> suchThat arbitrary isConID'
-conSymGen   = Symbol <$> suchThat arbitrary isConSym'
+varIDAGen, varGenA, conIDAGen, conGenA :: Gen Name
+varIDGen    = Ident  <$> suchThat nameStringGen isVarID'
+varIDAGen   = Ident  <$> suchThat nameStringAGen isVarIDA'
+varSymGen   = Symbol <$> suchThat symGen isVarSym'
+varGen      = frequency [(5, varIDGen), (3, varSymGen)]
+varGenA     = frequency [(5, varIDAGen), (3, varSymGen)]
+conIDGen    = Ident  <$> suchThat nameStringGen isConID'
+conIDAGen   = Ident  <$> suchThat nameStringAGen isConIDA'
+conSymGen   = Symbol <$> suchThat ((':':) <$> symGen) isConSym'
 conGen      = frequency [(4, conIDGen), (1, conSymGen)]
+conGenA     = frequency [(4, conIDAGen), (1, conSymGen)]
 
+symGen :: Gen String
+symGen = listOf1 $ elements asciiSyms
+nameStringAGen :: Gen String
+nameStringAGen = plistOf1 . elements. filter isIDPart . map chr $ [0..126]
+nameStringGen :: Gen String
+nameStringGen = plistOf1 (arbitrary `suchThat` isIDPart)
 
-isVar, isCon, isConID, isVarID, isConSym, isVarSym :: Name -> Bool
-isCon n = isConID n || isConSym n
-isVar n = isVarID n || isVarSym n
-isConID (Ident  n) = isConID' n
-isConID (Symbol _) = False
-isVarID (Ident  n) = isVarID' n
-isVarID (Symbol _) = False
-isConSym (Ident  _) = False
-isConSym (Symbol s) = isConSym' s
-isVarSym (Ident  _) = False
-isVarSym (Symbol s) = isVarSym' s
+isVar, isCon, isConID, isConIDA, isVarID, isVarIDA, isConSym, isVarSym :: Name -> Bool
+isCon = isConID .|| isConSym
+isVar = isVarID .|| isVarSym
 
-isConID', isVarID', isConSym', isVarSym' :: String -> Bool
-isConID' = isID isUpper isIDPart
-isVarID' ns = isID isLower isIDPart ns
-    && not (ns `elem` reservedid)
+isConID  = isIdent isConID'
+isConIDA = isIdent isConIDA'
+isVarID  = isIdent isVarID'
+isVarIDA = isIdent  isVarIDA'
+isConSym = isSymbol isConSym'
+isVarSym = isSymbol isVarSym'
+
+isIdent :: (String -> Bool) -> Name -> Bool
+isIdent p (Ident  n) = p n
+isIdent _ (Symbol _) = False
+
+isSymbol :: (String -> Bool) -> Name -> Bool
+isSymbol _ (Ident  _) = False
+isSymbol p (Symbol s) = p s
+
+isConID', isConIDA', isVarID', isVarIDA', isConSym', isVarSym' :: String -> Bool
+isConID'  = isConIDG (const True)
+isConIDA' = isConIDG isAscii
+isVarID'  = isVarIDG (const True)
+isVarIDA' = isVarIDG isAscii
 isConSym' s = isID (==':') isAsciiSym s
     && not (s `elem` reservedop)
 isVarSym' s = isID (isAsciiSym .&&  (/= ':')) isAsciiSym s
     && not (s `elem` reservedop)
     && not (all (=='-') s)
 
+isConIDG, isVarIDG :: (Char -> Bool) -> String -> Bool
+isConIDG f = all f .&& isID isUpper isIDPart
+isVarIDG f ns = all f ns
+    && isID (isLower .|| (== '_')) isIDPart ns
+    && not (ns `elem` reservedid)
+
 isAsciiSym :: Char -> Bool
-isAsciiSym c = c `elem` "!#$%&*+./<=>?@\\^|-~:"
+isAsciiSym c = c `elem` asciiSyms
+
+asciiSyms :: String
+asciiSyms = "!#$%&*+./<=>?@\\^|-~:"
 
 reservedid :: [String]
 reservedid =
