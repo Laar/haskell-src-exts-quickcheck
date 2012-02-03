@@ -50,6 +50,7 @@ module Language.Haskell.Exts.QuickCheck.Generators (
     opGen, opGenWithDist,
     -- ** SpecialCon
     specialConGen,
+    specialConGen',
     -- ** CName
     cnameGen, cnameGenWithDist,
 
@@ -310,16 +311,19 @@ opGenWithDist nd = withNameDist' nd ConOp VarOp
 -----------------------------------------------------------------------------
 -- SpecialCon
 
-specialConGen
+specialConGen :: Gen SpecialCon
+specialConGen = specialConGen' 5 2 7 boxedGen
+
+specialConGen'
     :: Int -- ^ frequency of normal cons
     -> Int -- ^ frequency of tuple cons
     -> Int -- ^ maximum size of tuple cons
     -> Gen Boxed
     -> Gen SpecialCon
-specialConGen nf tf mts bg
+specialConGen' nf tf mts bg
     = frequency
         [ (nf, elements [UnitCon, ListCon, FunCon, Cons, UnboxedSingleCon])
-        , (tf, TupleCon <$> bg <*> suchThat arbitrary ((>1) .&& (<= mts)) )
+        , (tf, TupleCon <$> bg <*> choose (2, mts))
         ]
 
 -----------------------------------------------------------------------------
@@ -361,7 +365,7 @@ toolGen
     ->  Gen Tool
 toolGen unknown = frequency
     [ (10, elements [GHC, HUGS, NHC98, YHC, HADDOCK])
-    , (uf, UnknownTool <$> suchThat arbitrary (all isAlphaNum) )]
+    , (uf, UnknownTool <$> suchThat arbitrary (all isIDPart) )]
     where uf = if unknown then 1 else 0
 -- Rule
 -- RuleVar

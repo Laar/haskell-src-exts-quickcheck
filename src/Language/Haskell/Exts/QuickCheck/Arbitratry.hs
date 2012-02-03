@@ -127,7 +127,7 @@ instance Arbitrary Op where
 -- SpecialCon
 
 instance Arbitrary SpecialCon where
-    arbitrary = specialConGen 5 2 7 arbitrary
+    arbitrary = specialConGen
 
 -----------------------------------------------------------------------------
 -- CName, as far as it's usefull
