@@ -12,7 +12,7 @@
 --
 -----------------------------------------------------------------------------
 
-module Language.Haskell.Exts.QuickCheck.Generators (
+module Test.QuickCheck.Instances.HaskellSrcExts.Generators (
     -- * Modules
     -- ** WarningText
     warningTextGen, shrinkWarningText,

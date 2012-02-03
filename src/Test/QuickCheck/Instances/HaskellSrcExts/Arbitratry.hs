@@ -14,7 +14,7 @@
 --
 -----------------------------------------------------------------------------
 
-module Language.Haskell.Exts.QuickCheck.Arbitratry (
+module Test.QuickCheck.Instances.HaskellSrcExts.Arbitratry (
 ) where
 
 -----------------------------------------------------------------------------
@@ -22,7 +22,7 @@ module Language.Haskell.Exts.QuickCheck.Arbitratry (
 import Test.QuickCheck
 import Language.Haskell.Exts.Syntax
 
-import Language.Haskell.Exts.QuickCheck.Generators
+import Test.QuickCheck.Instances.HaskellSrcExts.Generators
 
 -----------------------------------------------------------------------------
 -- Module
