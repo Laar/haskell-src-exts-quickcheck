@@ -100,28 +100,28 @@ instance Arbitrary Literal where
 -----------------------------------------------------------------------------
 
 instance Arbitrary ModuleName where
-    arbitrary = moduleNameGen
+    arbitrary = moduleNameGen Default
     shrink    = shrinkModuleName
 
 -----------------------------------------------------------------------------
 -- QName
 
 instance Arbitrary QName where
-    arbitrary = qnameGen arbitrary arbitrary arbitrary
+    arbitrary = qnameGen Default
 
 -----------------------------------------------------------------------------
 -- Name
 instance Arbitrary Name where
-    arbitrary = nameGen
+    arbitrary = nameGen Default
 
 -----------------------------------------------------------------------------
 -- QOp
 
 instance Arbitrary QOp where
-    arbitrary = qopGen arbitrary arbitrary arbitrary
+    arbitrary = qopGen Default
 -- Op
 instance Arbitrary Op where
-    arbitrary = opGen
+    arbitrary = opGen Default
 
 -----------------------------------------------------------------------------
 -- SpecialCon
@@ -132,7 +132,7 @@ instance Arbitrary SpecialCon where
 -----------------------------------------------------------------------------
 -- CName, as far as it's usefull
 instance Arbitrary CName where
-    arbitrary = cnameGen
+    arbitrary = cnameGen Default
 
 -----------------------------------------------------------------------------
 
