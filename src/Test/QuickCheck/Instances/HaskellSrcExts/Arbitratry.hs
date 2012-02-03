@@ -107,7 +107,7 @@ instance Arbitrary ModuleName where
 -- QName
 
 instance Arbitrary QName where
-    arbitrary = qnameGen arbitrary arbitrary arbitrary
+    arbitrary = qnameGen Default
 
 -----------------------------------------------------------------------------
 -- Name
@@ -118,7 +118,7 @@ instance Arbitrary Name where
 -- QOp
 
 instance Arbitrary QOp where
-    arbitrary = qopGen arbitrary arbitrary arbitrary
+    arbitrary = qopGen Default
 -- Op
 instance Arbitrary Op where
     arbitrary = opGen Default

@@ -30,15 +30,17 @@ module Test.QuickCheck.Instances.HaskellSrcExts.Generators (
     nonPrimLit, primLit,
 
     -- * Variables, Constructors and Operators
+    CharGenMode(..),
     -- ** ModuleName
     moduleNameGen, shrinkModuleName,
 
     -- ** Name helpers
-    NameGenDist(..), CharGenMode(..),
     -- ** QName
-    qnameGen,
+    QNameDist(..),
+    qnameGen, qnameGenWithDist,
 
     -- ** Name
+    NameDist(..),
     nameGen, nameGenWithDist,
     varIDGen, varSymGen, conIDGen, conSymGen,
     -- *** Name propositions
@@ -46,6 +48,7 @@ module Test.QuickCheck.Instances.HaskellSrcExts.Generators (
 
     -- ** QOp
     qopGen,
+    qopGenWithDist,
     -- ** Op
     opGen, opGenWithDist,
     -- ** SpecialCon
@@ -239,6 +242,21 @@ nonPrimLit = literalGen `suchThat` (not . isPrim)
 primLit    = literalGen `suchThat` isPrim
 
 -----------------------------------------------------------------------------
+-- Defaul distributions
+
+defaultNameDist, defaultOpNameDist :: NameDist
+defaultNameDist   = (ND 4 5 1 3)
+defaultOpNameDist = (ND 2 3 5 1)
+
+defaultSpecialConDist :: SpecialConDist
+defaultSpecialConDist = (SCD 5 2 [Boxed, Unboxed] 7)
+
+defaultQNameDist, defaultQOpQNameDist :: QNameDist
+defaultQNameDist    = (QND 5 2 1 defaultNameDist   defaultSpecialConDist)
+defaultQOpQNameDist = (QND 5 2 1 defaultOpNameDist defaultSpecialConDist)
+
+-----------------------------------------------------------------------------
+-- ModuleName
 
 moduleNameGen :: CharGenMode -> Gen ModuleName
 moduleNameGen cgm = fmap (ModuleName . intercalate ".") parts
@@ -268,18 +286,32 @@ isIDPart = isLower .|| isUpper .|| isDigit .|| (== '\'') .|| (== '_')
 -----------------------------------------------------------------------------
 -- QName
 
-qnameGen :: Gen Name -> Gen ModuleName -> Gen SpecialCon -> Gen QName
-qnameGen ng mg sg = frequency
-    [ (5, UnQual  <$> ng)
-    , (2, Qual    <$> mg <*> ng)
-    , (1, Special <$> sg)
-    ]
+qnameGen :: CharGenMode -> Gen QName
+qnameGen = qnameGenWithDist defaultQNameDist
+
+qnameGenWithDist :: QNameDist -> CharGenMode -> Gen QName
+qnameGenWithDist qnd cgm =
+    let genName = nameGenWithDist (nameDist qnd) cgm
+    in frequency
+        [ (unqualf  qnd, UnQual  <$> genName)
+        , (qualf    qnd, Qual    <$> moduleNameGen cgm <*> genName)
+        , (specialf qnd, Special <$> specialConGenWithDist (specialDist qnd))
+        ]
+
+data QNameDist
+    = QND
+    { unqualf       :: Int
+    , qualf         :: Int
+    , specialf      :: Int
+    , nameDist      :: NameDist
+    , specialDist   :: SpecialConDist
+    }
 
 -----------------------------------------------------------------------------
 -- Name
 
-data NameGenDist
-    = NGD
+data NameDist
+    = ND
     { cidf  :: Int
     , vidf  :: Int
     , csymf :: Int
@@ -292,10 +324,13 @@ data CharGenMode
     | SpecialMode (Char -> Bool) (Char -> Bool)
 
 nameGen :: CharGenMode -> Gen Name
-nameGen = nameGenWithDist id id (NGD 4 5 1 3)
+nameGen = nameGenWithDist defaultNameDist
 
-nameGenWithDist :: (Name -> a) -> (Name -> a) -> NameGenDist -> CharGenMode -> Gen a
-nameGenWithDist gc gv ngd cm
+nameGenWithDist :: NameDist -> CharGenMode -> Gen Name
+nameGenWithDist = genFromNameWithDist id id
+
+genFromNameWithDist :: (Name -> a) -> (Name -> a) -> NameDist -> CharGenMode -> Gen a
+genFromNameWithDist gc gv ngd cm
     = frequency
         [ (cidf  ngd, gc <$> conIDGen  cm)
         , (vidf  ngd, gv <$> varIDGen  cm)
@@ -401,28 +436,34 @@ isAsciiSym c = c `elem` asciiSyms
 
 -----------------------------------------------------------------------------
 -- QOp
-qopGen :: Gen Op -> Gen ModuleName -> Gen SpecialCon -> Gen QOp
-qopGen og mg sg = frequency
-    [ (5, liftOp   UnQual  <$> og)
-    , (2, liftOp . Qual    <$> mg <*> og)
-    , (1, QConOp . Special <$> sg)
-    ]
-    where
+
+qopGen :: CharGenMode -> Gen QOp
+qopGen = qopGenWithDist defaultQOpQNameDist
+
+qopGenWithDist :: QNameDist ->  CharGenMode -> Gen QOp
+qopGenWithDist qnd cgm =
+    let genOp = opGenWithDist (nameDist qnd) cgm
         liftOp :: (Name -> QName) -> Op -> QOp
         liftOp f (VarOp n) = QVarOp $ f n
         liftOp f (ConOp n) = QConOp $ f n
+    in frequency
+        [ (unqualf  qnd, liftOp   UnQual  <$> genOp)
+        , (qualf    qnd, liftOp . Qual    <$> moduleNameGen cgm  <*> genOp)
+        , (specialf qnd, QConOp . Special <$> specialConGenWithDist (specialDist qnd))
+        ]
+
 -- Op
 opGen :: CharGenMode -> Gen Op
-opGen = opGenWithDist (NGD 2 3 5 1)
+opGen = opGenWithDist defaultOpNameDist
 
-opGenWithDist :: NameGenDist -> CharGenMode -> Gen Op
-opGenWithDist = nameGenWithDist ConOp VarOp
+opGenWithDist :: NameDist -> CharGenMode -> Gen Op
+opGenWithDist = genFromNameWithDist ConOp VarOp
 
 -----------------------------------------------------------------------------
 -- SpecialCon
 
 specialConGen :: Gen SpecialCon
-specialConGen = specialConGenWithDist (SCD 5 2 [Boxed, Unboxed] 7)
+specialConGen = specialConGenWithDist defaultSpecialConDist
 
 data SpecialConDist
     = SCD
@@ -443,10 +484,10 @@ specialConGenWithDist scd = frequency
 -- CName, as far as it's usefull
 
 cnameGen :: CharGenMode -> Gen CName
-cnameGen = cnameGenWithDist (NGD 5 5 1 3)
+cnameGen = cnameGenWithDist defaultNameDist
 
-cnameGenWithDist :: NameGenDist -> CharGenMode -> Gen CName
-cnameGenWithDist = nameGenWithDist ConName VarName
+cnameGenWithDist :: NameDist -> CharGenMode -> Gen CName
+cnameGenWithDist = genFromNameWithDist ConName VarName
 
 -----------------------------------------------------------------------------
 
