@@ -34,19 +34,15 @@ module Test.QuickCheck.Instances.HaskellSrcExts.Generators (
     moduleNameGen, shrinkModuleName,
 
     -- ** Name helpers
-    NameDistribution,
+    NameGenDist(..), CharGenMode(..),
     -- ** QName
     qnameGen,
 
     -- ** Name
-    nameGen,
-    varIDGen, varSymGen, varGen, conIDGen, conSymGen, conGen,
+    nameGen, nameGenWithDist,
+    varIDGen, varSymGen, conIDGen, conSymGen,
     -- *** Name propositions
     isVarID, isVarSym, isVar, isConID, isConSym, isCon,
-    -- *** Ascii name
-    nameGenA,
-    varIDAGen,varGenA, conIDAGen, conGenA,
-    isVarIDA, isConIDA,
 
     -- ** QOp
     qopGen,
@@ -75,7 +71,7 @@ module Test.QuickCheck.Instances.HaskellSrcExts.Generators (
 
 import Control.Applicative
 
-import Data.Char(isUpper, isLower, isDigit, isAscii, chr)
+import Data.Char(isUpper, isLower, isDigit)
 import Data.List(intercalate, findIndex)
 import Data.Maybe(fromMaybe)
 import Data.Traversable(mapAccumL)
@@ -243,11 +239,13 @@ primLit    = literalGen `suchThat` isPrim
 
 -----------------------------------------------------------------------------
 
-moduleNameGen :: Gen ModuleName
-moduleNameGen = fmap (ModuleName . intercalate ".") parts
+moduleNameGen :: CharGenMode -> Gen ModuleName
+moduleNameGen cgm = fmap (ModuleName . intercalate ".") parts
     where
+        modNamePartGen :: Gen String
+        modNamePartGen = (:) <$> charGenWith isUpper cgm <*> nameStringGen cgm
         parts :: Gen [String]
-        parts = listOf1 (nameStringGen `suchThat` isModIDPart)
+        parts = listOf1 modNamePartGen
 
 shrinkModuleName :: ModuleName -> [ModuleName]
 shrinkModuleName (ModuleName n) = map ModuleName $ shrink' n
@@ -258,9 +256,6 @@ shrinkModuleName (ModuleName n) = map ModuleName $ shrink' n
             (_ , '.':ns) -> ns : shrink' ns
             (ns, [])     -> [ns]
             (_, _)       -> error $ "shrink: unexpected character in:" ++ n
-
-isModIDPart :: String -> Bool
-isModIDPart = isID isUpper isIDPart
 
 isID :: (Char -> Bool) -> (Char -> Bool) -> String -> Bool
 isID _ _ [] = False
@@ -281,63 +276,99 @@ qnameGen ng mg sg = frequency
 
 -----------------------------------------------------------------------------
 -- Name
-nameGen :: Gen Name
-nameGen  = withNameDist (4, 5, 1, 3) id
 
-nameGenA :: Gen Name
-nameGenA = withNameDistA (4, 5, 1, 3) id
+data NameGenDist
+    = NGD
+    { cidf  :: Int
+    , vidf  :: Int
+    , csymf :: Int
+    , vsymf :: Int
+    } deriving (Eq, Ord, Show)
 
-type NameDistribution = (Int, Int, Int, Int)
+data CharGenMode
+    = Default
+    | Ascii
+    | SpecialMode (Char -> Bool) (Char -> Bool)
 
-withNameDist :: NameDistribution -> (Name -> a) -> Gen a
-withNameDist nd g = withNameDist' nd g g
-withNameDist' :: NameDistribution -> (Name -> a) -> (Name -> a) -> Gen a
-withNameDist' (ci, vi, cs, vs) gc gv
+nameGen :: CharGenMode -> Gen Name
+nameGen = nameGenWithDist id id (NGD 4 5 1 3)
+
+nameGenWithDist :: (Name -> a) -> (Name -> a) -> NameGenDist -> CharGenMode -> Gen a
+nameGenWithDist gc gv ngd cm
     = frequency
-        [ (ci, gc <$> conIDGen)
-        , (vi, gv <$> varIDGen)
-        , (cs, gc <$> conSymGen)
-        , (vs, gv <$> varSymGen)]
+        [ (cidf  ngd, gc <$> conIDGen  cm)
+        , (vidf  ngd, gv <$> varIDGen  cm)
+        , (csymf ngd, gc <$> conSymGen cm)
+        , (vsymf ngd, gv <$> varSymGen cm)]
 
-withNameDistA :: NameDistribution -> (Name -> a) -> Gen a
-withNameDistA nd g = withNameDistA' nd g g
-withNameDistA' :: NameDistribution -> (Name -> a) -> (Name -> a) -> Gen a
-withNameDistA' (ci, vi, cs, vs) gc gv
-    = frequency
-        [ (ci, gc <$> conIDAGen)
-        , (vi, gv <$> varIDAGen)
-        , (cs, gc <$> conSymGen)
-        , (vs, gv <$> varSymGen)]
+-----------------------------------------------------------------------------
+-- the generators for the parts
+
+charGen :: CharGenMode -> Gen Char
+charGen Default           = arbitrary
+charGen Ascii             = elements asciiChars
+charGen (SpecialMode p _) = arbitrary `suchThat` p
+
+symGen :: CharGenMode -> Gen Char
+symGen Default           = arbitrary
+symGen Ascii             = elements asciiSyms
+symGen (SpecialMode _ p) = arbitrary `suchThat` p
+
+charGenWith :: (Char -> Bool) -> CharGenMode -> Gen Char
+charGenWith p m = charGen m `suchThat` p
+
+nameStringGen :: CharGenMode -> Gen String
+nameStringGen = plistOf1 . charGen
+
+symGenWith :: (Char -> Bool) -> CharGenMode -> Gen Char
+symGenWith  p m = symGen m `suchThat` p
+
+symsGen :: CharGenMode -> Gen String
+symsGen = plistOf1 . symGen
 
 
-varIDGen, varSymGen, varGen, conIDGen, conSymGen, conGen :: Gen Name
-varIDAGen, varGenA, conIDAGen, conGenA :: Gen Name
-varIDGen    = Ident  <$> suchThat nameStringGen isVarID'
-varIDAGen   = Ident  <$> suchThat nameStringAGen isVarIDA'
-varSymGen   = Symbol <$> suchThat symGen isVarSym'
-varGen      = frequency [(5, varIDGen), (3, varSymGen)]
-varGenA     = frequency [(5, varIDAGen), (3, varSymGen)]
-conIDGen    = Ident  <$> suchThat nameStringGen isConID'
-conIDAGen   = Ident  <$> suchThat nameStringAGen isConIDA'
-conSymGen   = Symbol <$> suchThat ((':':) <$> symGen) isConSym'
-conGen      = frequency [(4, conIDGen), (1, conSymGen)]
-conGenA     = frequency [(4, conIDAGen), (1, conSymGen)]
+conIDGen, varIDGen, conSymGen, varSymGen :: CharGenMode -> Gen Name
+conIDGen m = Ident <$> (charGenWith isUpper m <:> nameStringGen m)
+varIDGen m = Ident <$> (charGenWith isSmall m <:> nameStringGen m) `notFrom` reservedid
+    where isSmall = isLower .|| (=='_')
+conSymGen m = Symbol <$> ((':':) <$> symsGen m)                `notFrom` reservedop
+varSymGen m = Symbol <$> (symGenWith  (/=':') m <:> symsGen m) `notFrom` reservedop
 
-symGen :: Gen String
-symGen = listOf1 $ elements asciiSyms
-nameStringAGen :: Gen String
-nameStringAGen = plistOf1 . elements. filter isIDPart . map chr $ [0..126]
-nameStringGen :: Gen String
-nameStringGen = plistOf1 (arbitrary `suchThat` isIDPart)
+(<:>) :: Applicative m => m a -> m [a] -> m [a]
+a1 <:> a2 = (:) <$> a1 <*> a2
+notFrom :: Eq a => Gen a -> [a] -> Gen a
+notFrom g a = g `suchThat` (not . (`elem` a))
 
-isVar, isCon, isConID, isConIDA, isVarID, isVarIDA, isConSym, isVarSym :: Name -> Bool
+-----------------------------------------------------------------------------
+-- listing of chars and reserved names
+
+asciiChars, smallAChars, largeAChars, digits, asciiSyms :: String
+asciiChars    = smallAChars ++ largeAChars ++ digits ++ "'"
+smallAChars = ['a'..'z'] ++ "_"
+largeAChars = ['A'..'Z']
+digits      = ['0'..'9']
+asciiSyms = "!#$%&*+./<=>?@\\^|-~:"
+
+reservedid :: [String]
+reservedid =
+    [ "case", "class", "data", "default", "deriving", "do", "else"
+    , "foreign", "if", "import", "in", "infix", "infixl"
+    , "infixr", "instance", "let", "module", "newtype", "of"
+    , "then", "type", "where", "_"
+    ]
+
+reservedop :: [String]
+reservedop = ["..", ":", "::", "=", "\\", "|", "<-", "->", "@", "~", "=>"]
+
+-----------------------------------------------------------------------------
+-- name checkers
+
+isVar, isCon, isConID, isVarID, isConSym, isVarSym :: Name -> Bool
 isCon = isConID .|| isConSym
 isVar = isVarID .|| isVarSym
 
 isConID  = isIdent isConID'
-isConIDA = isIdent isConIDA'
 isVarID  = isIdent isVarID'
-isVarIDA = isIdent  isVarIDA'
 isConSym = isSymbol isConSym'
 isVarSym = isSymbol isVarSym'
 
@@ -349,11 +380,9 @@ isSymbol :: (String -> Bool) -> Name -> Bool
 isSymbol _ (Ident  _) = False
 isSymbol p (Symbol s) = p s
 
-isConID', isConIDA', isVarID', isVarIDA', isConSym', isVarSym' :: String -> Bool
+isConID', isVarID', isConSym', isVarSym' :: String -> Bool
 isConID'  = isConIDG (const True)
-isConIDA' = isConIDG isAscii
 isVarID'  = isVarIDG (const True)
-isVarIDA' = isVarIDG isAscii
 isConSym' s = isID (==':') isAsciiSym s
     && not (s `elem` reservedop)
 isVarSym' s = isID (isAsciiSym .&&  (/= ':')) isAsciiSym s
@@ -369,20 +398,6 @@ isVarIDG f ns = all f ns
 isAsciiSym :: Char -> Bool
 isAsciiSym c = c `elem` asciiSyms
 
-asciiSyms :: String
-asciiSyms = "!#$%&*+./<=>?@\\^|-~:"
-
-reservedid :: [String]
-reservedid =
-    [ "case", "class", "data", "default", "deriving", "do", "else"
-    , "foreign", "if", "import", "in", "infix", "infixl"
-    , "infixr", "instance", "let", "module", "newtype", "of"
-    , "then", "type", "where", "_"
-    ]
-
-reservedop :: [String]
-reservedop = ["..", ":", "::", "=", "\\", "|", "<-", "->", "@", "~", "=>"]
-
 -----------------------------------------------------------------------------
 -- QOp
 qopGen :: Gen Op -> Gen ModuleName -> Gen SpecialCon -> Gen QOp
@@ -396,11 +411,11 @@ qopGen og mg sg = frequency
         liftOp f (VarOp n) = QVarOp $ f n
         liftOp f (ConOp n) = QConOp $ f n
 -- Op
-opGen :: Gen Op
-opGen = opGenWithDist (2, 3, 5, 1)
+opGen :: CharGenMode -> Gen Op
+opGen = opGenWithDist (NGD 2 3 5 1)
 
-opGenWithDist :: NameDistribution -> Gen Op
-opGenWithDist nd = withNameDist' nd ConOp VarOp
+opGenWithDist :: NameGenDist -> CharGenMode -> Gen Op
+opGenWithDist = nameGenWithDist ConOp VarOp
 
 -----------------------------------------------------------------------------
 -- SpecialCon
@@ -423,11 +438,11 @@ specialConGen' nf tf mts bg
 -----------------------------------------------------------------------------
 -- CName, as far as it's usefull
 
-cnameGen :: Gen CName
-cnameGen = cnameGenWithDist (5, 5, 1, 3)
+cnameGen :: CharGenMode -> Gen CName
+cnameGen = cnameGenWithDist (NGD 5 5 1 3)
 
-cnameGenWithDist :: NameDistribution -> Gen CName
-cnameGenWithDist nd = withNameDist' nd ConName VarName
+cnameGenWithDist :: NameGenDist -> CharGenMode -> Gen CName
+cnameGenWithDist = nameGenWithDist ConName VarName
 
 -----------------------------------------------------------------------------
 
