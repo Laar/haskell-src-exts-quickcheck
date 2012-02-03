@@ -68,7 +68,7 @@ module Language.Haskell.Exts.QuickCheck.Generators (
     -- ** Tool
     toolGen,
 
-    poisonGen,
+    poisonGen, uniqueList,
 ) where
 
 -----------------------------------------------------------------------------
@@ -123,6 +123,19 @@ poisonGen lambda c1 c2 =
 
 plistOf1 :: Gen a -> Gen [a]
 plistOf1 g = (:) <$> g <*> (poisonGen 4 10 20 >>= \i -> vectorOf i g)
+
+-----------------------------------------------------------------------------
+
+uniqueList :: Eq a => Int -> Gen a -> Gen [a]
+uniqueList n g = go n (return [])
+    where
+        go 0 acc = acc
+        go n' acc = do
+            e <- g
+            el <- elem e <$> acc
+            if el
+             then go n acc
+             else go (n'-1) ((e:)<$>acc)
 
 -----------------------------------------------------------------------------
 -- Module
