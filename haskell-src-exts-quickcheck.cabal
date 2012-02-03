@@ -12,9 +12,12 @@ stability:
 homepage:
 package-url:
 bug-reports:
-synopsis:
-description: .
-category:
+synopsis: Quickcheck instances and generators for haskell-src-exts
+description: This package provides quickcheck Generators for haskell-src-exts. Along
+             side with it there are instances of Arbitrary with these instances. Due to
+             the nature of AST there cannot be an Arbitrary for all types from haskell-
+             src-exts.
+category: Language
 author: Lars Corbijn
 tested-with:
 data-files:
