@@ -1,0 +1,52 @@
+name: haskell-src-exts-quickcheck
+version: 0.0.1
+cabal-version: -any
+build-type: Simple
+license: AllRightsReserved
+license-file: LICENSE
+copyright: Lars Corbijn
+maintainer:
+build-depends: QuickCheck >=2.4 && <2.5, base >=4,
+               haskell-src-exts >=1.11.1
+stability:
+homepage:
+package-url:
+bug-reports:
+synopsis:
+description: .
+category:
+author: Lars Corbijn
+tested-with:
+data-files:
+data-dir: ""
+extra-source-files:
+extra-tmp-files:
+exposed-modules: Language.Haskell.Exts.QuickCheck.Arbitratry
+                 Language.Haskell.Exts.QuickCheck.Generators
+exposed: True
+buildable: True
+build-tools:
+cpp-options:
+cc-options:
+ld-options:
+pkgconfig-depends:
+frameworks:
+c-sources:
+default-language:
+other-languages:
+default-extensions:
+other-extensions:
+extensions:
+extra-libraries:
+extra-lib-dirs:
+includes:
+install-includes:
+include-dirs:
+hs-source-dirs: src
+other-modules:
+ghc-prof-options:
+ghc-shared-options:
+ghc-options: -Wall
+hugs-options:
+nhc98-options:
+jhc-options:
