@@ -24,7 +24,8 @@ data-files:
 data-dir: ""
 extra-source-files:
 extra-tmp-files:
-exposed-modules: Test.QuickCheck.Instances.HaskellSrcExts.Arbitratry
+exposed-modules: Test.QuickCheck.Instances.HaskellSrcExts.Generators.Junk98
+                 Test.QuickCheck.Instances.HaskellSrcExts.Arbitratry
                  Test.QuickCheck.Instances.HaskellSrcExts.Generators
 exposed: True
 buildable: True
