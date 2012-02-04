@@ -36,23 +36,26 @@ module Test.QuickCheck.Instances.HaskellSrcExts.Generators (
 
     -- ** Name helpers
     -- ** QName
-    QNameDist(..),
+    QNameDist(..), defaultQNameDist,
     qnameGen, qnameGenWithDist,
 
     -- ** Name
-    NameDist(..),
+    NameDist(..), defaultNameDist,
     nameGen, nameGenWithDist,
     varIDGen, varSymGen, conIDGen, conSymGen,
     -- *** Name propositions
     isVarID, isVarSym, isVar, isConID, isConSym, isCon,
 
     -- ** QOp
+    defaultQOpQNameDist,
     qopGen,
     qopGenWithDist,
     -- ** Op
+    defaultOpNameDist,
     opGen, opGenWithDist,
     -- ** SpecialCon
     SpecialConDist(..),
+    defaultSpecialConDist,
     specialConGen,
     specialConGenWithDist,
     -- ** CName
@@ -68,6 +71,7 @@ module Test.QuickCheck.Instances.HaskellSrcExts.Generators (
     -- ** Tool
     toolGen,
 
+    -- * Generator helpers
     poisonGen, plistOf1,
     uniqueList,
 ) where
