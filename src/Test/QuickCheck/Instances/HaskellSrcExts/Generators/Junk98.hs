@@ -24,11 +24,16 @@ module Test.QuickCheck.Instances.HaskellSrcExts.Generators.Junk98 (
     -- ** ImportSpec
     ISpecDist(..), defaultISpecDist,
     importSpecJunkGen, importSpecJunkGenWithDist,
+
+    -- * Type classes and instances
+    -- ** Deriving
+    derivingJunkGen,
 ) where
 
 -----------------------------------------------------------------------------
 
 import Control.Applicative ((<$>), (<*>))
+import Data.Maybe(catMaybes)
 
 import Language.Haskell.Exts.Syntax
 import Test.QuickCheck
@@ -133,4 +138,17 @@ importSpecJunkGenWithDist isd cgm = frequency
 -----------------------------------------------------------------------------
 
 -----------------------------------------------------------------------------
+-- Deriving
 
+derivingJunkGen
+    :: Bool -- ^ qualified
+    -> Bool -- ^ with `Enum` and `Bounded` possibility
+    -> Gen [Deriving]
+derivingJunkGen q eb = (map (\d -> (d, [])) . flip select ders) <$> vectorOf (length ders) arbitrary
+    where
+        ders = map ((if q then Qual (ModuleName "Prelude") else UnQual) . Ident)
+            (["Eq", "Ord", "Show", "Read"]  ++ if eb then ["Enum", "Bounded"] else [])
+        select :: [Bool] -> [a] -> [a]
+        select bs = catMaybes . zipWith (\b -> if b then Just else const Nothing) bs
+
+-----------------------------------------------------------------------------
