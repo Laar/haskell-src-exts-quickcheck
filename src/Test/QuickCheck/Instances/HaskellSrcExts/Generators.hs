@@ -68,7 +68,8 @@ module Test.QuickCheck.Instances.HaskellSrcExts.Generators (
     -- ** Tool
     toolGen,
 
-    poisonGen, uniqueList,
+    poisonGen, plistOf1,
+    uniqueList,
 ) where
 
 -----------------------------------------------------------------------------
@@ -76,7 +77,7 @@ module Test.QuickCheck.Instances.HaskellSrcExts.Generators (
 import Control.Applicative
 
 import Data.Char(isUpper, isLower, isDigit)
-import Data.List(intercalate, findIndex)
+import Data.List(intercalate, findIndex, tails)
 import Data.Maybe(fromMaybe)
 import Data.Traversable(mapAccumL)
 
@@ -264,17 +265,13 @@ moduleNameGen cgm = fmap (ModuleName . intercalate ".") parts
         modNamePartGen :: Gen String
         modNamePartGen = (:) <$> charGenWith isUpper cgm <*> nameStringGen cgm
         parts :: Gen [String]
-        parts = listOf1 modNamePartGen
+        parts = plistOf1 modNamePartGen
 
 shrinkModuleName :: ModuleName -> [ModuleName]
 shrinkModuleName (ModuleName n) = map ModuleName $ shrink' n
     where
         shrink' :: String -> [String]
-        shrink' n' = case break (== '.') n' of
-            ([], _)      -> []
-            (_ , '.':ns) -> ns : shrink' ns
-            (ns, [])     -> [ns]
-            (_, _)       -> error $ "shrink: unexpected character in:" ++ n
+        shrink' ns = [t | ('.':t) <- tails ns ]
 
 isID :: (Char -> Bool) -> (Char -> Bool) -> String -> Bool
 isID _ _ [] = False
