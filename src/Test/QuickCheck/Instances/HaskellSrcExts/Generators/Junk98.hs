@@ -8,7 +8,11 @@
 -- Stability   :
 -- Portability :
 --
--- | Generators for Haskell 98 compliant junk AST parts.
+-- | Generators for Haskell 98 compliant junk AST parts. These generators
+-- are (absolutely) not generating realistic AST parts for checking general
+-- properties. The two things you can count on is that the parts are valid
+-- H98 and that they are finite. It is recommended to take a look at the
+-- output using `sample` before using them.
 --
 -----------------------------------------------------------------------------
 
@@ -143,7 +147,7 @@ importSpecJunkGenWithDist isd cgm = frequency
 -- Type
 
 tqnameDist :: QNameDist
-tqnameDist = QND 10 3 0 (ND 9 0 1 0) (SCD 1 3 [Boxed, Unboxed] 3)
+tqnameDist = QND 10 3 0 (ND 9 0 1 0) (SCD 1 3 [Boxed] 3)
 
 data TypeDist
     = TD
@@ -195,8 +199,7 @@ typeJunkGenWithDist td cgm = do
                 tupgen = do
                     l <- choose (2,2+i)
                     ts <- sequence . replicate l $  tgen (i-1)
-                    bx <- boxedGen
-                    return $ TyTuple bx ts
+                    return $ TyTuple Boxed ts
                 limit f = if i <= 0 then 0 else f td
 
 -----------------------------------------------------------------------------
