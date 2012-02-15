@@ -25,7 +25,11 @@ module Test.QuickCheck.Instances.HaskellSrcExts.Generators.Junk98 (
     ISpecDist(..), defaultISpecDist,
     importSpecJunkGen, importSpecJunkGenWithDist,
 
+
     -- * Type classes and instances
+    -- ** Type
+    TypeDist(..), defaultTypeDist,
+    typeJunkGenWithDist, typeJunkGen,
     -- ** Deriving
     derivingJunkGen,
 ) where
@@ -136,6 +140,64 @@ importSpecJunkGenWithDist isd cgm = frequency
     ]
 
 -----------------------------------------------------------------------------
+-- Type
+
+tqnameDist :: QNameDist
+tqnameDist = QND 10 3 0 (ND 9 0 1 0) (SCD 1 3 [Boxed, Unboxed] 3)
+
+data TypeDist
+    = TD
+    { tinitfunclenf :: [(Int, Int)]
+    , tqnamed :: QNameDist
+    , tconf   :: Int
+    , tvconf  :: Int
+    , tvarf   :: Int
+    , tparenf :: Int
+    , tfunf   :: Int
+    , tlistf  :: Int
+    , ttupf   :: Int
+    , tmaxlen :: Int
+    }
+
+-- | WARNING this doesn't generate special names
+defaultTypeDist :: TypeDist
+defaultTypeDist =
+    TD [(1,1), (3, 2), (4, 3), (5, 4), (3,5), (1,6), (1,7)]
+        tqnameDist
+        5 1 3 1 1 1 1
+        3
+
+-- | WARNING this doesn't generate special names
+typeJunkGen :: CharGenMode -> Gen Type
+typeJunkGen = typeJunkGenWithDist defaultTypeDist
+
+typeJunkGenWithDist :: TypeDist -> CharGenMode -> Gen Type
+typeJunkGenWithDist td cgm = do
+    n <- frequency . map (\(f,n') -> (f, return n')) $ tinitfunclenf td
+    ts <- sequence $ replicate n (tgen (tmaxlen td))
+    return $ foldr1 TyFun ts
+    where
+        qnamegen = qnameGenWithDist (tqnamed td) cgm
+        tgen i = frequency
+            [ (tvarf td     , TyVar <$> varIDGen cgm)
+            , (limit tconf  , TyCon <$> qnamegen >>= conWith)
+            , (limit tvconf , TyVar <$> varIDGen cgm >>= conWith)
+            , (limit tparenf, TyParen <$> tgen (i-1))
+            , (limit tfunf  , TyFun <$> tgen (i-1) <*> tgen (i-1))
+            , (limit tlistf , TyList <$> tgen (i-1))
+            , (limit ttupf  , tupgen)
+            ]
+            where
+                conWith n = do
+                    l <- choose (0, i)
+                    ts <- sequence . replicate l $  tgen (i-1)
+                    return $ foldr TyApp n ts
+                tupgen = do
+                    l <- choose (2,2+i)
+                    ts <- sequence . replicate l $  tgen (i-1)
+                    bx <- boxedGen
+                    return $ TyTuple bx ts
+                limit f = if i <= 0 then 0 else f td
 
 -----------------------------------------------------------------------------
 -- Deriving
