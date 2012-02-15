@@ -72,7 +72,7 @@ module Test.QuickCheck.Instances.HaskellSrcExts.Generators (
     toolGen,
 
     -- * Generator helpers
-    poisonGen, plistOf1,
+    poisonGen, plistOf1, plistOfN,
     uniqueList,
 ) where
 
@@ -128,6 +128,10 @@ poisonGen lambda c1 c2 =
 
 plistOf1 :: Gen a -> Gen [a]
 plistOf1 g = (:) <$> g <*> (poisonGen 4 10 20 >>= \i -> vectorOf i g)
+
+plistOfN :: Int -> Double -> Int -> Int -> Gen a -> Gen [a]
+plistOfN n l c1 c2 g = (++) <$> sequence (replicate n g)
+                            <*> (poisonGen l c1 c2 >>= \i -> vectorOf i g)
 
 -----------------------------------------------------------------------------
 
