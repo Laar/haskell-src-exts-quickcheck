@@ -147,7 +147,7 @@ importSpecJunkGenWithDist isd cgm = frequency
 -- Type
 
 tqnameDist :: QNameDist
-tqnameDist = QND 10 3 0 (ND 9 0 1 0) (SCD 1 3 [Boxed] 3)
+tqnameDist = QND 10 3 0 (ND 9 0 0 0) (SCD 1 3 [Boxed] 3)
 
 data TypeDist
     = TD
@@ -182,6 +182,7 @@ typeJunkGenWithDist td cgm = do
     return $ foldr1 TyFun ts
     where
         qnamegen = qnameGenWithDist (tqnamed td) cgm
+        -- the i variable is used to limit the size of the generated part.
         tgen i = frequency
             [ (tvarf td     , TyVar <$> varIDGen cgm)
             , (limit tconf  , TyCon <$> qnamegen >>= conWith)
