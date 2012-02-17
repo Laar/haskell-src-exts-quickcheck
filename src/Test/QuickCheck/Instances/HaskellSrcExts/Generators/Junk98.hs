@@ -34,6 +34,7 @@ module Test.QuickCheck.Instances.HaskellSrcExts.Generators.Junk98 (
     -- ** Type
     TypeDist(..), defaultTypeDist,
     typeJunkGenWithDist, typeJunkGen,
+    shrinkType,
     -- ** Deriving
     derivingJunkGen,
 ) where
@@ -41,6 +42,7 @@ module Test.QuickCheck.Instances.HaskellSrcExts.Generators.Junk98 (
 -----------------------------------------------------------------------------
 
 import Control.Applicative ((<$>), (<*>))
+import Data.List(inits)
 import Data.Maybe(catMaybes)
 
 import Language.Haskell.Exts.Syntax
@@ -202,6 +204,19 @@ typeJunkGenWithDist td cgm = do
                     ts <- sequence . replicate l $  tgen (i-1)
                     return $ TyTuple Boxed ts
                 limit f = if i <= 0 then 0 else f td
+
+shrinkType :: Type -> [Type]
+shrinkType t = case t of
+    TyForall{}      -> []
+    TyFun   t1   t2 -> [t1, t2]
+    TyTuple    b ts -> ts ++ (map (TyTuple b) . filter ((>2) . length) $ inits ts)
+    TyList  t'      -> [t']
+    TyApp   t1   t2 -> [t1, t2]
+    TyVar      _    -> []
+    TyCon      _    -> []
+    TyParen t'      -> [t']
+    TyInfix t1 _ t2 -> [t1,t2]
+    TyKind  t' _    -> [t']
 
 -----------------------------------------------------------------------------
 -- Deriving
