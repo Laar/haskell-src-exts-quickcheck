@@ -208,15 +208,20 @@ typeJunkGenWithDist td cgm = do
 shrinkType :: Type -> [Type]
 shrinkType t = case t of
     TyForall{}      -> []
-    TyFun   t1   t2 -> [t1, t2]
+    TyFun   t1   t2 -> shrink2 TyFun t1 t2
     TyTuple    b ts -> ts ++ (map (TyTuple b) . filter ((>2) . length) $ inits ts)
-    TyList  t'      -> [t']
-    TyApp   t1   t2 -> [t1, t2]
+    TyList  t'      -> [t'] ++ map TyList (shrinkType t')
+    TyApp   t1   t2 -> shrink2 TyApp t1 t2
     TyVar      _    -> []
     TyCon      _    -> []
-    TyParen t'      -> [t']
-    TyInfix t1 _ t2 -> [t1,t2]
+    TyParen t'      -> [t'] ++ map TyParen (shrinkType t')
+    TyInfix t1 i t2 -> shrink2 (\t1' -> TyInfix t1' i) t1 t2
     TyKind  t' _    -> [t']
+    where
+        shrink2 f t1 t2 = [t1, t2]
+            ++ [f t1 t2'| t2' <- shrinkType t2]
+            ++ [f t1' t2| t1' <- shrinkType t1]
+            ++ [f t1' t2'| t1' <- shrinkType t1, t2' <- shrinkType t2]
 
 -----------------------------------------------------------------------------
 -- Deriving
