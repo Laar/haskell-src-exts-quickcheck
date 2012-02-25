@@ -148,8 +148,11 @@ importSpecJunkGenWithDist isd cgm = frequency
 -----------------------------------------------------------------------------
 -- Type
 
+-- TODO
+-- implement Tuples with less applications than places e.g. @(,) Int@
+
 tqnameDist :: QNameDist
-tqnameDist = QND 10 3 0 (ND 9 0 0 0) (SCD 1 3 [Boxed] 3)
+tqnameDist = QND 10 3 0 (ND 9 0 0 0) (SCD 1 0 [Boxed] 3)
 
 data TypeDist
     = TD
@@ -163,6 +166,8 @@ data TypeDist
     , tlistf  :: Int
     , ttupf   :: Int
     , tmaxlen :: Int
+    , tupNorf :: Int -- Relative frequency of using the normal TyTuple
+    , tupSpcf :: Int -- Relative frequency of using the special TupleCon
     }
 
 -- | WARNING this doesn't generate special names
@@ -172,6 +177,7 @@ defaultTypeDist =
         tqnameDist
         5 1 3 1 1 1 1
         3
+        4 1
 
 -- | WARNING this doesn't generate special names
 typeJunkGen :: CharGenMode -> Gen Type
@@ -202,7 +208,11 @@ typeJunkGenWithDist td cgm = do
                 tupgen = do
                     l <- choose (2,2+i)
                     ts <- sequence . replicate l $  tgen (i-1)
+                    frequency [(tupNorf td, tupgenn ts), (tupSpcf td, tupgens l ts)]
+                tupgenn ts = do
                     return $ TyTuple Boxed ts
+                tupgens l ts = do
+                    return $ foldl TyApp (TyCon . Special $ TupleCon Boxed l) ts
                 limit f = if i <= 0 then 0 else f td
 
 shrinkType :: Type -> [Type]
