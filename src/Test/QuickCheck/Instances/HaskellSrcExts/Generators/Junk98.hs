@@ -204,7 +204,7 @@ typeJunkGenWithDist td cgm = do
                 conWith n = do
                     l <- choose (0, i)
                     ts <- sequence . replicate l $  tgen (i-1)
-                    return $ foldr TyApp n ts
+                    return $ foldl TyApp n ts
                 tupgen = do
                     l <- choose (2,2+i)
                     ts <- sequence . replicate l $  tgen (i-1)
